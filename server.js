@@ -11,20 +11,40 @@ const openai = new OpenAI({
 apiKey: process.env.OPENAI_API_KEY
 })
 
+app.get("/", (req,res)=>{
+
+res.send("Resume AI API is running")
+
+})
+
 app.post("/generate-resume", async (req,res)=>{
 
-const data=req.body
+try{
 
-const prompt=`
+const data = req.body
 
-Create a professional resume using the following data.
+const prompt = `
+
+Create a professional ATS-friendly resume in HTML format.
+
+Use sections:
+
+Name
+Contact Information
+Professional Summary
+Skills
+Work Experience
+Education
+Certifications
+
+Candidate Data:
 
 Name: ${data.name}
 Mobile: ${data.mobile}
 Email: ${data.email}
 Certifications: ${data.certifications}
 
-Format a clean modern resume.
+Return only clean HTML.
 
 `
 
@@ -40,14 +60,20 @@ messages:[
 
 res.json({
 
-resume:completion.choices[0].message.content
+resume: completion.choices[0].message.content
 
 })
+
+}catch(error){
+
+res.status(500).json({error:"Resume generation failed"})
+
+}
 
 })
 
 app.listen(3000,()=>{
 
-console.log("AI Resume API running")
+console.log("Resume AI API running")
 
 })
