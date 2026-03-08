@@ -25,17 +25,27 @@ const data = req.body
 
 const prompt = `
 
-Create a professional ATS-friendly resume in HTML format.
+You are a professional resume writer.
 
-Use sections:
+Create a modern ATS-friendly resume using the candidate data.
 
-Name
-Contact Information
-Professional Summary
-Skills
-Work Experience
-Education
-Certifications
+Requirements:
+
+• Clear professional summary  
+• Bullet points for achievements  
+• Action verbs  
+• ATS friendly wording  
+• Concise professional writing  
+
+Resume sections:
+
+Name  
+Contact Information  
+Professional Summary  
+Core Skills  
+Work Experience  
+Education  
+Certifications  
 
 Candidate Data:
 
@@ -44,7 +54,14 @@ Mobile: ${data.mobile}
 Email: ${data.email}
 Certifications: ${data.certifications}
 
-Return only clean HTML.
+Return ONLY clean HTML.
+
+Use:
+<h1> for name
+<h2> for section headings
+<ul> and <li> for bullet points
+
+Do not include <html> or <body> tags.
 
 `
 
@@ -59,9 +76,7 @@ messages:[
 })
 
 res.json({
-
-resume: completion.choices[0].message.content
-
+resume:completion.choices[0].message.content
 })
 
 }catch(error){
