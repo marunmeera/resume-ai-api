@@ -24,37 +24,34 @@ try{
 const data = req.body
 
 const prompt = `
+Generate a professional ATS-friendly resume using ONLY the information provided.
 
-You are a professional resume writer.
+Rules:
+• Do NOT invent skills
+• Do NOT invent experience
+• If a section has no data, omit it
+• Use bullet points
+• Use professional tone
+• Clean HTML layout
 
-Create a modern ATS-friendly resume using the candidate data.
-
-Requirements:
-
-• Clear professional summary  
-• Bullet points for achievements  
-• Action verbs  
-• ATS friendly wording  
-• Concise professional writing  
-
-Resume sections:
-
-Name  
-Contact Information  
-Professional Summary  
-Core Skills  
-Work Experience  
-Education  
-Certifications  
+Sections:
+Name
+Contact Information
+Education
+Work Experience
+Skills
+Certifications
+Projects
 
 Candidate Data:
-
 Name: ${data.name}
 Mobile: ${data.mobile}
 Email: ${data.email}
+Skills: ${data.skills}
 Certifications: ${data.certifications}
+Projects: ${data.projects}
 
-Return ONLY clean HTML.
+Return ONLY HTML.
 
 Use:
 <h1> for name
@@ -92,3 +89,4 @@ app.listen(3000,()=>{
 console.log("Resume AI API running")
 
 })
+
