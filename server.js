@@ -13,18 +13,37 @@ app.post("/generate", async (req, res) => {
 
     const data = req.body;
 
-    // 🔥 PROMPT WITH REAL USER DATA
+    // 🔥 PREMIUM PROMPT (REVATHI-LEVEL)
     const prompt = `
-Create a professional ATS-friendly resume in clean HTML format.
+Create a PREMIUM, recruiter-level resume in CLEAN HTML format.
 
 STRICT RULES:
 - Return ONLY HTML (no explanation)
-- Do NOT use placeholder names like John Doe
-- Use the candidate data provided below
-- Use bullet points for responsibilities
-- Keep it clean, structured, and professional
+- Use ONLY the candidate data provided
+- Do NOT use placeholders like John Doe
+- Do NOT invent fake experience
 
-CANDIDATE DETAILS:
+DESIGN REQUIREMENTS:
+- Professional layout
+- Clear section separation
+- Use tables for experience alignment
+- Use bullet points for responsibilities
+- Maintain perfect spacing and alignment
+- Make it visually clean and modern
+
+STRUCTURE:
+
+1. Name (Large Heading)
+2. Contact (Single Line)
+3. Professional Summary (2–3 lines)
+4. Work Experience (TABLE FORMAT)
+   Columns: Company | Role | Duration
+   Below each → bullet points
+5. Education
+6. Skills
+7. Projects
+
+CANDIDATE DATA:
 
 Name: ${data.name}
 Email: ${data.email}
@@ -43,7 +62,7 @@ Projects:
 ${data.projects}
 `;
 
-    // 🔥 CALL OPENAI
+    // 🔥 OPENAI CALL
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -61,30 +80,75 @@ ${data.projects}
 
     const html = result.choices?.[0]?.message?.content;
 
-    // ❌ HANDLE EMPTY RESPONSE
+    // ❌ FAIL SAFE
     if (!html) {
       return res.json({ success: false });
     }
 
-    // ✅ CLEAN HTML WRAPPER
+    // ✅ PREMIUM WRAPPER
     const finalHTML = `
 <html>
 <head>
 <style>
-body { font-family: Arial; padding:40px; line-height:1.6; }
-h1 { border-bottom:2px solid #000; padding-bottom:5px; }
-h2 { margin-top:20px; border-bottom:1px solid #ccc; padding-bottom:3px; }
-ul { margin-top:5px; }
-p { margin:5px 0; }
+body {
+  font-family: Arial, sans-serif;
+  padding: 40px;
+  line-height: 1.6;
+  color: #111;
+}
+
+h1 {
+  font-size: 28px;
+  border-bottom: 3px solid #000;
+  padding-bottom: 5px;
+}
+
+h2 {
+  font-size: 18px;
+  margin-top: 25px;
+  border-bottom: 2px solid #ccc;
+  padding-bottom: 4px;
+}
+
+p {
+  margin: 5px 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+td {
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+  vertical-align: top;
+}
+
+ul {
+  margin-top: 5px;
+  margin-bottom: 10px;
+}
+
+li {
+  margin-bottom: 4px;
+}
+
+.section {
+  margin-top: 20px;
+}
 </style>
 </head>
+
 <body>
+
 ${html}
+
 </body>
 </html>
 `;
 
-    // ✅ RETURN FINAL OUTPUT
     res.json({
       success: true,
       html: finalHTML
