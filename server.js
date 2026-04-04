@@ -1,38 +1,29 @@
-import express from "express";
-import cors from "cors";
-import fetch from "node-fetch";
+const data = req.body;
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const prompt = `
+Create a professional ATS-friendly resume in clean HTML format.
 
-app.post("/generate", async (req,res)=>{
+STRICT RULES:
+- Return ONLY HTML (no explanation)
+- Use real data provided below
+- Do NOT use placeholder names like John Doe
+- Use bullet points for responsibilities
+- Keep it clean and professional
 
-try{
+CANDIDATE DATA:
+Name: ${data.name}
+Email: ${data.email}
+Mobile: ${data.mobile}
 
-const prompt = `Create ATS resume HTML only`;
+Education:
+${JSON.stringify(data.academics)}
 
-const response = await fetch("https://api.openai.com/v1/chat/completions",{
-method:"POST",
-headers:{
-"Authorization":`Bearer ${process.env.OPENAI_API_KEY}`,
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-model:"gpt-4o-mini",
-messages:[{role:"user",content:prompt}]
-})
-});
+Experience:
+${JSON.stringify(data.experience)}
 
-const data = await response.json();
-const html = data.choices?.[0]?.message?.content;
+Skills:
+${JSON.stringify(data.skills)}
 
-res.json({success:true, html});
-
-}catch{
-res.json({success:false});
-}
-
-});
-
-app.listen(3000);
+Projects:
+${data.projects}
+`;
