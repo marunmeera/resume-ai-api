@@ -4,17 +4,23 @@ import fetch from "node-fetch";
 import crypto from "crypto";
 
 const app = express();
-
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "8mb" })); // photo as base64 needs more headroom
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-const PRICES = { pdf: 1900, word: 2900 }; // amount in paise — decided server-side, never trust client
 
-// ---------------------------------------------------------
-// 1. Create a Razorpay order (amount fixed server-side)
-// ---------------------------------------------------------
+// Amount in paise. Single source of truth — never trust price from the client.
+const PRICES = { basic: 1900, moderate: 3400, experienced: 4900 };
+
+const TIER_INSTRUCTIONS = {
+  basic: "Keep the summary to 2 sentences and each role to 2-3 concise bullet points. Prioritize clarity and brevity over depth.",
+  moderate: "Write a 2-3 sentence summary and 3-4 bullet points per role, at standard professional depth.",
+  experienced: "Write a comprehensive 3-4 sentence summary emphasizing scope and leadership. Use 4-5 bullet points per role, with strong emphasis on quantified business impact, ownership, and outcomes."
+};
+
+const TIER_ACCENT = { basic: "#333333", moderate: "#145C4B", experienced: "#8a5a2b" };
+
 app.post("/create-order", async (req, res) => {
   try {
     const { type } = req.body;
@@ -22,42 +28,21 @@ app.post("/create-order", async (req, res) => {
     if (!amount) return res.json({ success: false, error: "invalid_type" });
 
     const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
-
     const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
-      headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        amount,
-        currency: "INR",
-        receipt: `receipt_${Date.now()}`
-      })
+      headers: { "Authorization": `Basic ${auth}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, currency: "INR", receipt: `receipt_${Date.now()}` })
     });
-
     const order = await orderRes.json();
-    if (!order.id) {
-      console.error("ORDER CREATE FAILED:", order);
-      return res.json({ success: false });
-    }
+    if (!order.id) { console.error("ORDER CREATE FAILED:", order); return res.json({ success: false }); }
 
-    res.json({
-      success: true,
-      order_id: order.id,
-      amount: order.amount,
-      key_id: RAZORPAY_KEY_ID
-    });
-
+    res.json({ success: true, order_id: order.id, amount: order.amount, key_id: RAZORPAY_KEY_ID });
   } catch (error) {
     console.error("ORDER ERROR:", error);
     res.json({ success: false });
   }
 });
 
-// ---------------------------------------------------------
-// 2. Generate resume — only after verifying payment signature
-// ---------------------------------------------------------
 app.post("/generate", async (req, res) => {
   try {
     const data = req.body;
@@ -66,55 +51,51 @@ app.post("/generate", async (req, res) => {
     if (!payment || !payment.razorpay_order_id || !payment.razorpay_payment_id || !payment.razorpay_signature) {
       return res.json({ success: false, error: "payment_invalid" });
     }
-
-    const expectedSignature = crypto
-      .createHmac("sha256", RAZORPAY_KEY_SECRET)
-      .update(`${payment.razorpay_order_id}|${payment.razorpay_payment_id}`)
-      .digest("hex");
-
+    const expectedSignature = crypto.createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(`${payment.razorpay_order_id}|${payment.razorpay_payment_id}`).digest("hex");
     if (expectedSignature !== payment.razorpay_signature) {
       console.warn("SIGNATURE MISMATCH — rejecting generation request");
       return res.json({ success: false, error: "payment_invalid" });
     }
 
-    // ----- Payment verified. Proceed to AI generation. -----
-
-    const academics = (data.academics || []).map(a => ({
-      qualification: a[0] || "",
-      institution: a[1] || "",
-      grade: a[2] || ""
-    })).filter(a => a.qualification || a.institution);
-
-    const experience = (data.experience || []).filter(e => e.company || e.role);
-    const skills = (data.skills || []).filter(Boolean);
+    const tier = PRICES[payment.type] ? payment.type : "basic";
+    const academics = (data.academics || []).filter(a => a.institution);
+    const experience = (data.experience || []).filter(e => e.title || e.company);
+    const certifications = (data.certifications || []).filter(c => c.name);
+    const skills = (data.skills || "").split(",").map(s => s.trim()).filter(Boolean);
 
     const prompt = `You are a senior resume writer who has reviewed thousands of resumes for recruiters and hiring managers. Rewrite this candidate's raw input into polished, ATS-friendly resume content.
 
 STRICT RULES:
 - Use ONLY the facts given. Never invent employers, dates, qualifications, or numbers that aren't implied by the input.
+- Never expand, translate, reinterpret, or guess the meaning of any abbreviation, acronym, or certification name. Reproduce credential names, certification titles, and abbreviations EXACTLY as the candidate typed them — do not add a parenthetical expansion unless the candidate already provided one themselves.
 - If the input is genuinely thin for a section, write less rather than pad with generic filler.
 - Never use these clichés: "hardworking", "team player", "detail-oriented", "responsible for", "duties included", "passionate about".
-- Every experience bullet must start with a strong action verb (Led, Built, Reduced, Automated, Increased, Coordinated, etc.) and describe an outcome, not a task.
-- Quantify wherever the input reasonably allows (%, ₹, hours saved, team size, number of items/customers/campaigns) — but only when justified by what the candidate actually wrote. Do not fabricate numbers.
+- Every experience bullet must start with a strong action verb and describe an outcome, not a task.
+- Quantify wherever the input reasonably allows — but only when justified by what the candidate actually wrote. Do not fabricate numbers.
 - Vary sentence structure — never start two bullets in the same section with the same verb.
-- Write a 2-3 sentence professional summary that reflects the candidate's actual background, not a generic template line.
+- CONTENT DEPTH FOR THIS PACKAGE: ${TIER_INSTRUCTIONS[tier]}
 
 CANDIDATE DATA:
 Name: ${data.name}
 Email: ${data.email}
 Mobile: ${data.mobile}
+Location: ${data.location || ""}
+Career objective (raw, rewrite if present): ${data.objective || ""}
 
 Education: ${JSON.stringify(academics)}
 Experience (raw notes to rewrite): ${JSON.stringify(experience)}
+Certifications (reproduce names exactly): ${JSON.stringify(certifications)}
 Skills: ${JSON.stringify(skills)}
 Projects (raw notes to rewrite): ${data.projects || ""}
 
 Return ONLY valid JSON, no markdown fences, no commentary, matching exactly this schema:
 {
-  "headline": "short professional title line based on their background",
-  "summary": "2-3 sentence professional summary",
-  "education": [{"qualification":"","institution":"","grade":""}],
-  "experience": [{"company":"","role":"","duration":"","bullets":["...","..."]}],
+  "headline": "short professional title line",
+  "summary": "professional summary per the content depth instruction above",
+  "education": [{"level":"","institution":"","board":"","year":"","score":""}],
+  "experience": [{"title":"","company":"","duration":"","bullets":["..."]}],
+  "certifications": [{"name":"","issuer":"","year":""}],
   "skills": ["..."],
   "projects": [{"title":"","description":""}]
 }
@@ -128,8 +109,8 @@ Omit an array entirely only if there was truly no usable input for it.`;
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1800,
+        model: "claude-sonnet-5",
+        max_tokens: 2200,
         messages: [{ role: "user", content: prompt }]
       })
     });
@@ -139,70 +120,67 @@ Omit an array entirely only if there was truly no usable input for it.`;
     raw = raw.replace(/^```json/, "").replace(/^```/, "").replace(/```$/, "").trim();
 
     let content;
-    try {
-      content = JSON.parse(raw);
-    } catch (e) {
-      console.error("PARSE ERROR:", raw);
-      return res.json({ success: false });
-    }
+    try { content = JSON.parse(raw); }
+    catch (e) { console.error("PARSE ERROR:", raw); return res.json({ success: false }); }
+    if (!content || !content.summary) return res.json({ success: false });
 
-    if (!content || !content.summary) {
-      return res.json({ success: false });
-    }
+    const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const accent = TIER_ACCENT[tier];
 
-    const esc = (s) => String(s || "")
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-    const educationHtml = (content.education || []).map(e => `
-      <p><b>${esc(e.qualification)}</b> — ${esc(e.institution)}${e.grade ? " · " + esc(e.grade) : ""}</p>
+    const eduRows = (content.education || []).map(e => `
+      <tr><td>${esc(e.level)}</td><td>${esc(e.institution)}</td><td>${esc(e.board)}</td><td>${esc(e.year)}</td><td>${esc(e.score)}</td></tr>
     `).join("");
 
-    const experienceHtml = (content.experience || []).map(e => `
-      <table>
-        <tr><td><b>${esc(e.company)}</b></td><td>${esc(e.role)}</td><td>${esc(e.duration)}</td></tr>
-      </table>
-      <ul>${(e.bullets || []).map(b => `<li>${esc(b)}</li>`).join("")}</ul>
+    const expRows = (content.experience || []).map(e => `
+      <tr><td colspan="4"><b>${esc(e.title)}</b> — ${esc(e.company)} <span style="color:#777;">(${esc(e.duration)})</span>
+      <ul style="margin:6px 0 0 18px;">${(e.bullets||[]).map(b=>`<li>${esc(b)}</li>`).join("")}</ul></td></tr>
+    `).join("");
+
+    const certRows = (content.certifications || []).map(c => `
+      <tr><td>${esc(c.name)}</td><td>${esc(c.issuer)}</td><td>${esc(c.year)}</td></tr>
     `).join("");
 
     const skillsHtml = (content.skills || []).length
-      ? `<p>${(content.skills || []).map(esc).join(" &nbsp;·&nbsp; ")}</p>` : "";
+      ? `<div class="skills">${(content.skills||[]).map(s=>`<span>${esc(s)}</span>`).join("")}</div>` : "";
 
-    const projectsHtml = (content.projects || []).map(p => `
-      <p><b>${esc(p.title)}</b> — ${esc(p.description)}</p>
-    `).join("");
+    const projectsHtml = (content.projects || []).map(p => `<p><b>${esc(p.title)}</b> — ${esc(p.description)}</p>`).join("");
+
+    const photoHtml = data.photo ? `<img src="${data.photo}">` : "";
 
     const finalHTML = `
-<html>
-<head>
-<style>
-body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; color: #111; }
-h1 { font-size: 28px; border-bottom: 3px solid #000; padding-bottom: 5px; margin-bottom: 2px; }
-.headline { color: #444; font-size: 14px; margin-bottom: 4px; }
-h2 { font-size: 18px; margin-top: 25px; border-bottom: 2px solid #ccc; padding-bottom: 4px; }
-p { margin: 5px 0; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-td { padding: 4px 0; vertical-align: top; }
-ul { margin-top: 5px; margin-bottom: 10px; }
-li { margin-bottom: 4px; }
-.section { margin-top: 20px; }
-</style>
-</head>
+<html><head><style>
+body { font-family: Arial, sans-serif; padding: 36px; line-height: 1.55; color: #111; }
+.header-row { display:flex; align-items:flex-start; gap:18px; border-bottom:3px solid ${accent}; padding-bottom:10px; margin-bottom:16px; }
+.header-row img { width:80px; height:80px; object-fit:cover; border-radius:4px; }
+h1 { font-size:26px; margin:0; }
+.headline { color:${accent}; font-size:13.5px; font-weight:600; margin-top:2px; }
+.contact { font-size:12.5px; color:#555; margin-top:4px; }
+h2 { font-size:15px; text-transform:uppercase; letter-spacing:.5px; color:${accent}; border-bottom:1px solid #ddd; padding-bottom:4px; margin-top:22px; margin-bottom:8px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; background:#f3f3f3; padding:6px 8px; font-size:11px; text-transform:uppercase; color:#555; border:1px solid #e0e0e0; }
+td { padding:6px 8px; border:1px solid #e0e0e0; vertical-align:top; }
+li { margin-bottom:3px; }
+.skills span { display:inline-block; background:#f0f0f0; padding:3px 10px; margin:2px; border-radius:2px; font-size:12px; }
+.section { margin-top:14px; }
+</style></head>
 <body>
-  <h1>${esc(data.name)}</h1>
-  <div class="headline">${esc(content.headline || "")}</div>
-  <p>${esc(data.email)} | ${esc(data.mobile)}</p>
-
-  <div class="section">
-    <h2>Professional Summary</h2>
-    <p>${esc(content.summary)}</p>
+  <div class="header-row">
+    ${photoHtml}
+    <div>
+      <h1>${esc(data.name)}</h1>
+      <div class="headline">${esc(content.headline || "")}</div>
+      <div class="contact">${[data.mobile, data.email, data.location].filter(Boolean).map(esc).join(" | ")}</div>
+    </div>
   </div>
 
-  ${experienceHtml ? `<div class="section"><h2>Work Experience</h2>${experienceHtml}</div>` : ""}
-  ${educationHtml ? `<div class="section"><h2>Education</h2>${educationHtml}</div>` : ""}
+  <div class="section"><h2>Summary</h2><p>${esc(content.summary)}</p></div>
+
+  ${expRows ? `<div class="section"><h2>Work Experience</h2><table>${expRows}</table></div>` : ""}
+  ${eduRows ? `<div class="section"><h2>Education</h2><table><tr><th>Level</th><th>Institution</th><th>Board</th><th>Year</th><th>Score</th></tr>${eduRows}</table></div>` : ""}
+  ${certRows ? `<div class="section"><h2>Certifications</h2><table><tr><th>Name</th><th>Issuer</th><th>Year</th></tr>${certRows}</table></div>` : ""}
   ${skillsHtml ? `<div class="section"><h2>Skills</h2>${skillsHtml}</div>` : ""}
   ${projectsHtml ? `<div class="section"><h2>Projects</h2>${projectsHtml}</div>` : ""}
-</body>
-</html>`;
+</body></html>`;
 
     res.json({ success: true, html: finalHTML });
 
