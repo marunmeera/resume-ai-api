@@ -147,6 +147,23 @@ Omit an array entirely only if there was truly no usable input for it.`;
 
     const photoHtml = data.photo ? `<img src="${data.photo}">` : "";
 
+    const today = new Date();
+    const declarationDate = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const declarationHtml = `
+      <div class="section" style="margin-top:24px;">
+        <h2>Declaration</h2>
+        <p style="font-size:12.5px;color:#333;">I hereby declare that the information provided above is true to the best of my knowledge and belief.</p>
+        <table style="width:auto;border:none;margin-top:10px;">
+          <tr style="border:none;">
+            <td style="border:none;padding:0;font-size:12.5px;">Place: ${esc(data.location || "")}</td>
+          </tr>
+          <tr style="border:none;">
+            <td style="border:none;padding:0;font-size:12.5px;">Date: ${declarationDate}</td>
+          </tr>
+        </table>
+        <p style="margin-top:16px;font-size:13px;font-weight:600;">${esc(data.name)}</p>
+      </div>`;
+
     const finalHTML = `
 <html><head><style>
 body { font-family: Arial, sans-serif; padding: 36px; line-height: 1.55; color: #111; }
@@ -180,6 +197,7 @@ li { margin-bottom:3px; }
   ${certRows ? `<div class="section"><h2>Certifications</h2><table><tr><th>Name</th><th>Issuer</th><th>Year</th></tr>${certRows}</table></div>` : ""}
   ${skillsHtml ? `<div class="section"><h2>Skills</h2>${skillsHtml}</div>` : ""}
   ${projectsHtml ? `<div class="section"><h2>Projects</h2>${projectsHtml}</div>` : ""}
+  ${declarationHtml}
 </body></html>`;
 
     res.json({ success: true, html: finalHTML });
