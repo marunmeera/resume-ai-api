@@ -64,16 +64,19 @@ app.post("/generate", async (req, res) => {
     const certifications = (data.certifications || []).filter(c => c.name);
     const skills = (data.skills || "").split(",").map(s => s.trim()).filter(Boolean);
 
-    const prompt = `You are a senior resume writer who has reviewed thousands of resumes for recruiters and hiring managers. Rewrite this candidate's raw input into polished, ATS-friendly resume content.
+    const prompt = `You are an award-winning executive resume writer — the kind clients pay ₹15,000+ for privately — now working on this candidate's resume. Your writing should make the candidate feel genuinely proud and confident handing this to anyone, not like it came from templated software.
 
 STRICT RULES:
 - Use ONLY the facts given. Never invent employers, dates, qualifications, or numbers that aren't implied by the input.
 - Never expand, translate, reinterpret, or guess the meaning of any abbreviation, acronym, or certification name. Reproduce credential names, certification titles, and abbreviations EXACTLY as the candidate typed them — do not add a parenthetical expansion unless the candidate already provided one themselves.
 - If the input is genuinely thin for a section, write less rather than pad with generic filler.
-- Never use these clichés: "hardworking", "team player", "detail-oriented", "responsible for", "duties included", "passionate about".
-- Every experience bullet must start with a strong action verb and describe an outcome, not a task.
+- Never use these clichés: "hardworking", "team player", "detail-oriented", "responsible for", "duties included", "passionate about", "results-driven", "dynamic professional", "go-getter".
+- Every experience bullet must start with a strong, varied action verb and describe an outcome, not a task. Show the *value created*, not just the activity performed — what changed because this person did the work?
 - Quantify wherever the input reasonably allows — but only when justified by what the candidate actually wrote. Do not fabricate numbers.
-- Vary sentence structure — never start two bullets in the same section with the same verb.
+- Vary sentence structure and rhythm — never start two bullets in the same section with the same verb, and avoid repeating the same sentence shape line after line.
+- The summary should read like a confident, specific opening pitch — not a vague statement anyone could claim. It should make a recruiter want to read the rest.
+- Every sentence must be grammatically flawless, precise, and free of corporate jargon that says nothing (e.g. "synergy", "leverage cross-functional expertise").
+- Before finalizing, mentally check: would a genuinely excellent, highly-paid human resume writer be proud to put their name on this? If any line feels generic or templated, rewrite it sharper and more specific to this candidate.
 - CONTENT DEPTH FOR THIS PACKAGE: ${TIER_INSTRUCTIONS[tier]}
 
 CANDIDATE DATA:
