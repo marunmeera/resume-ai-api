@@ -72,6 +72,8 @@ STRICT RULES:
 - If the input is genuinely thin for a section, write less rather than pad with generic filler.
 - Never use these clichés: "hardworking", "team player", "detail-oriented", "responsible for", "duties included", "passionate about", "results-driven", "dynamic professional", "go-getter".
 - Every experience bullet must start with a strong, varied action verb and describe an outcome, not a task. Show the *value created*, not just the activity performed — what changed because this person did the work?
+- Never combine multiple distinct responsibilities, tools, or achievements into one long run-on sentence. If the input lists several things (e.g. "network security, endpoint security, IAM, vulnerability assessment"), split them into separate bullet points — this is restructuring what's already true, not inventing anything, and it's what makes a resume easy to scan instead of feeling like a single dense paragraph.
+- For Moderate and Advanced packages specifically: each role should read as a genuine bulleted breakdown, not a one-line summary. If the candidate's raw input is themselves brief, extract every distinct fact into its own bullet rather than merging them — do not pad with invented content, but do not compress either.
 - Quantify wherever the input reasonably allows — but only when justified by what the candidate actually wrote. Do not fabricate numbers.
 - Vary sentence structure and rhythm — never start two bullets in the same section with the same verb, and avoid repeating the same sentence shape line after line.
 - The summary should read like a confident, specific opening pitch — not a vague statement anyone could claim. It should make a recruiter want to read the rest.
